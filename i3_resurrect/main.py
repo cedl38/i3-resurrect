@@ -51,7 +51,7 @@ def save_workspace(workspace, numeric, directory, profile, swallow, target):
         workspace = i3.get_tree().find_focused().workspace().name
 
     if profile is not None:
-        directory = Path(directory) / 'profiles'
+        directory = Path(directory) / profile
 
     # Create directory if non-existent.
     Path(directory).mkdir(parents=True, exist_ok=True)
@@ -59,11 +59,11 @@ def save_workspace(workspace, numeric, directory, profile, swallow, target):
     if target != 'programs_only':
         # Save workspace layout to file.
         swallow_criteria = swallow.split(',')
-        layout.save(workspace, numeric, directory, profile, swallow_criteria)
+        layout.save(workspace, numeric, directory, swallow_criteria)
 
     if target != 'layout_only':
         # Save running programs to file.
-        programs.save(workspace, numeric, directory, profile)
+        programs.save(workspace, numeric, directory)
 
 
 @main.command('restore')
@@ -96,14 +96,14 @@ def restore_workspace(workspace, numeric, directory, profile, target):
         workspace = i3.get_tree().find_focused().workspace().name
 
     if profile is not None:
-        directory = Path(directory) / 'profiles'
+        directory = Path(directory) / profile
 
     if numeric and not workspace.isdigit():
         util.eprint('Invalid workspace number.')
         sys.exit(1)
 
     # Get layout name from file.
-    workspace_layout = layout.read(workspace, directory, profile)
+    workspace_layout = layout.read(workspace, directory)
     if 'name' in workspace_layout and profile is None:
         workspace_name = workspace_layout['name']
     else:
@@ -118,7 +118,7 @@ def restore_workspace(workspace, numeric, directory, profile, target):
 
     if target != 'layout_only':
         # Restore programs.
-        saved_programs = programs.read(workspace, directory, profile)
+        saved_programs = programs.read(workspace, directory)
         programs.restore(workspace_name, saved_programs)
 
 
@@ -135,6 +135,7 @@ def list_workspaces(directory, item):
     """
     List saved workspaces or profiles.
     """
+    # TODO: list workspaces in profiles
     if item == 'workspaces':
         directory = Path(directory)
         workspaces = []
@@ -149,15 +150,13 @@ def list_workspaces(directory, item):
         for workspace in workspaces:
             print(workspace)
     else:
-        directory = Path(directory) / 'profiles'
+        directory = Path(directory)
         profiles = []
         try:
             for entry in directory.iterdir():
-                if entry.is_file():
-                    name = entry.name
-                    profile = name[:name.rfind('_')]
-                    file_type = name[name.rfind('_') + 1:name.index('.json')]
-                    profiles.append(f'Profile {profile} {file_type}')
+                if entry.is_dir():
+                    profile = entry.name
+                    profiles.append(f'Profile {profile}')
             profiles = natsorted(profiles)
             for profile in profiles:
                 print(profile)
@@ -185,16 +184,16 @@ def remove(workspace, directory, profile, target):
     """
     Remove saved layout or programs.
     """
+
     if profile is not None:
-        directory = Path(directory) / 'profiles'
-        programs_filename = f'{profile}_programs.json'
-        layout_filename = f'{profile}_layout.json'
-    elif workspace is not None:
+        directory = Path(directory) / profile
+
+    if workspace is not None:
         workspace_id = util.filename_filter(workspace)
         programs_filename = f'workspace_{workspace_id}_programs.json'
         layout_filename = f'workspace_{workspace_id}_layout.json'
     else:
-        util.eprint('Either --profile or --workspace must be specified.')
+        util.eprint('--workspace must be specified.')
         sys.exit(1)
     programs_file = Path(directory) / programs_filename
     layout_file = Path(directory) / layout_filename
