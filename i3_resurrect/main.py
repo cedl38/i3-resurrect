@@ -1,4 +1,6 @@
+import json
 import sys
+import os
 from pathlib import Path
 
 import click
@@ -104,7 +106,7 @@ def restore_workspace(workspace, numeric, directory, profile, target):
 
     # Get layout name from file.
     workspace_layout = layout.read(workspace, directory)
-    if 'name' in workspace_layout and profile is None:
+    if 'name' in workspace_layout:
         workspace_name = workspace_layout['name']
     else:
         workspace_name = workspace
@@ -120,6 +122,83 @@ def restore_workspace(workspace, numeric, directory, profile, target):
         # Restore programs.
         saved_programs = programs.read(workspace, directory)
         programs.restore(workspace_name, saved_programs)
+
+
+@main.command('load')
+@click.option('--workspace', '-w',
+              is_flag=True,
+              help='The workspace to load.\nThis can either be a name or the number of a workspace.')
+@click.option('--numeric', '-n',
+              is_flag=True,
+              help='Select workspace by number instead of name.')
+@click.option('--directory', '-d',
+              type=click.Path(file_okay=False),
+              default=Path('~/.i3/i3-resurrect/').expanduser(),
+              help=('The directory to restore the workspace from.\n'
+                    '[default: ~/.i3/i3-resurrect]'))
+@click.option('--profile', '-p',
+              default=None,
+              help=('The profile to restore the workspace from.'))
+@click.option('--layout-only', 'target',
+              flag_value='layout_only',
+              help='Only restore layout.')
+@click.option('--programs-only', 'target',
+              flag_value='programs_only',
+              help='Only restore running programs.')
+@click.argument('workspace_layout')
+@click.argument('target_workspace', required=False)
+def load_workspaces(workspace, numeric, directory, profile, target,
+        workspace_layout, target_workspace):
+    """
+    Load i3 workspace layout and programs.
+    WORKSPACE_LAYOUT is the workspace file to load
+    TARGET_WORKSPACE is the target workspace
+    """
+    i3 = i3ipc.Connection()
+
+    if numeric:
+        if not workspace_layout.isdigit():
+            util.eprint('Invalid workspace number.')
+            sys.exit(1)
+
+        if not target_workspace:
+            target_workspace = str(i3.get_tree().find_focused().workspace().num)
+        elif not target_workspace.isdigit():
+            util.eprint('Invalid workspace number.')
+            sys.exit(1)
+    else:
+        target_workspace = i3.get_tree().find_focused().workspace().name
+
+    if profile is not None:
+        directory = Path(directory) / profile
+
+    if not workspace:
+        util.eprint('--workspace option should be specified.')
+        sys.exit(1)
+
+    # Get layout name from file.
+    saved_layout = layout.read(workspace_layout, directory)
+    if saved_layout == None:
+        sys.exit(1)
+
+    if target != 'layout_only':
+        saved_programs = programs.read(workspace_layout, directory)
+    else:
+        saved_programs = None
+
+    if numeric:
+        i3.command(f'workspace --no-auto-back-and-forth number \
+                {target_workspace}')
+    else:
+        i3.command(f'workspace --no-auto-back-and-forth {target_workspace}')
+
+    if target != 'programs_only':
+        # Load workspace layout.
+        layout.restore(target_workspace, saved_layout)
+
+    if target != 'layout_only':
+        # Restore programs.
+        programs.restore(target_workspace, saved_programs)
 
 
 @main.command('ls')
