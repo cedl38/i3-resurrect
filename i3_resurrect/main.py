@@ -386,5 +386,32 @@ def clear_directory(directory, target):
         delete(layout_file, programs_file, target)
 
 
+@main.command('close')
+@click.option('--workspace', '-w',
+              is_flag=True,
+              help='The workspace to close.\nThis can either be a name or the number of a workspace.')
+@click.option('--session', '-S',
+              is_flag=True,
+              help='Close current session.\n')
+@click.argument('workspaces', nargs=-1)
+def close(workspace, session, workspaces):
+    """
+    Close workspace or whole session.
+    """
+    i3 = i3ipc.Connection()
+
+    if not workspaces:
+        workspaces = ( i3.get_tree().find_focused().workspace().name, )
+
+    if session:
+        workspaces = layout.list(i3, False)
+    elif not workspace:
+        util.eprint('either --workspace or --session option should be specified.')
+        sys.exit(1)
+
+    for workspace_id in workspaces:
+        i3.command(f'[workspace="{workspace_id}"] kill')
+
+
 if __name__ == '__main__':
     main()
