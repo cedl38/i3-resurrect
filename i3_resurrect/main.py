@@ -1,6 +1,7 @@
 import json
 import sys
 import os
+import time
 from pathlib import Path
 
 import click
@@ -136,6 +137,9 @@ def restore_workspace(i3, saved_layout, saved_programs, target, clear):
               is_flag=True,
               help='Close program that are not part of the workspace layout \
               before restore it.\n')
+@click.option('--focus', '-f',
+              is_flag=True,
+              help='Keep the focus on the current window.\n')
 @click.option('--layout-only', 'target',
               flag_value='layout_only',
               help='Only restore layout.')
@@ -144,7 +148,7 @@ def restore_workspace(i3, saved_layout, saved_programs, target, clear):
               help='Only restore running programs.')
 @click.argument('workspaces', nargs=-1)
 def restore_workspaces(workspace, numeric, session, directory, profile, target,
-        clear, workspaces):
+        clear, focus, workspaces):
     """
     Restore i3 workspaces layouts and programs.
     WORKSPACES are the workspaces to restore.
@@ -152,11 +156,13 @@ def restore_workspaces(workspace, numeric, session, directory, profile, target,
     """
     i3 = i3ipc.Connection()
 
+    focused_workspace = i3.get_tree().find_focused().workspace().name
+
     if not workspaces:
         if numeric:
             workspaces = ( str(i3.get_tree().find_focused().workspace().num), )
         else:
-            workspaces = ( i3.get_tree().find_focused().workspace().name, )
+            workspaces = ( focused_workspace, )
 
     if profile is not None:
         directory = Path(directory) / profile
@@ -185,6 +191,11 @@ def restore_workspaces(workspace, numeric, session, directory, profile, target,
     else:
         util.eprint('Either --workspace or --session should be specified.')
         sys.exit(1)
+
+    if focus:
+        # WORKAROUND: Add time sleep for loading the latest restored programm.
+        time.sleep(3)
+        i3.command(f'workspace --no-auto-back-and-forth {focused_workspace}')
 
 
 @main.command('load')
