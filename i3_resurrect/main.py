@@ -21,7 +21,8 @@ def main():
 
 @main.command('save')
 @click.option('--workspace', '-w',
-              help='The workspace to save.\n[default: current workspace]')
+              is_flag=True,
+              help='The workspaces to save.\n This can either be a name or the number of a workspace.')
 @click.option('--numeric', '-n',
               is_flag=True,
               help='Select workspace by number instead of name.')
@@ -44,13 +45,17 @@ def main():
 @click.option('--programs-only', 'target',
               flag_value='programs_only',
               help='Only save running programs.')
-def save_workspace(workspace, numeric, directory, profile, swallow, target):
+@click.argument('workspaces', nargs=-1, default=None)
+def save_workspace(workspace, numeric, directory, profile, swallow, target, workspaces):
     """
-    Save an i3 workspace's layout and running programs to a file.
+    Save i3 workspaces layouts and running programs to a file.
+    WORKSPACES are the workspaces to save.
+    [default: current workspace]
     """
-    if workspace is None:
+    if not workspaces:
         i3 = i3ipc.Connection()
-        workspace = i3.get_tree().find_focused().workspace().name
+        # set default value
+        workspaces = ( i3.get_tree().find_focused().workspace().name, )
 
     if profile is not None:
         directory = Path(directory) / profile
@@ -59,18 +64,48 @@ def save_workspace(workspace, numeric, directory, profile, swallow, target):
     Path(directory).mkdir(parents=True, exist_ok=True)
 
     if target != 'programs_only':
-        # Save workspace layout to file.
         swallow_criteria = swallow.split(',')
-        layout.save(workspace, numeric, directory, swallow_criteria)
+
+    if workspace:
+        for workspace_id in workspaces:
+            if target != 'programs_only':
+                # Save workspace layout to file.
+                layout.save(workspace_id, numeric, directory, swallow_criteria)
+
+            if target != 'layout_only':
+                # Save running programs to file.
+                programs.save(workspace_id, numeric, directory)
+    else:
+        util.eprint('--workspace must be specified.')
+        sys.exit(1)
+
+
+def restore_workspace(i3, saved_layout, saved_programs, target):
+    if saved_layout == None:
+        return
+
+    # Get layout name from file.
+    if 'name' in saved_layout:
+        workspace_name = saved_layout['name']
+    else:
+        util.eprint('Workspace name not found.')
+        sys.exit(1)
+
+    i3.command(f'workspace --no-auto-back-and-forth {workspace_name}')
+
+    if target != 'programs_only':
+        # Load workspace layout.
+        layout.restore(workspace_name, saved_layout)
 
     if target != 'layout_only':
-        # Save running programs to file.
-        programs.save(workspace, numeric, directory)
+        # Restore programs.
+        programs.restore(workspace_name, saved_programs)
 
 
 @main.command('restore')
 @click.option('--workspace', '-w',
-              help='The workspace to restore.\n[default: current workspace]')
+              is_flag=True,
+              help='The workspace to restore.\nThis can either be a name or the number of a workspace.')
 @click.option('--numeric', '-n',
               is_flag=True,
               help='Select workspace by number instead of name.')
@@ -88,40 +123,38 @@ def save_workspace(workspace, numeric, directory, profile, swallow, target):
 @click.option('--programs-only', 'target',
               flag_value='programs_only',
               help='Only restore running programs.')
-def restore_workspace(workspace, numeric, directory, profile, target):
+@click.argument('workspaces', nargs=-1)
+def restore_workspaces(workspace, numeric, directory, profile, target, workspaces):
     """
-    Restore i3 workspace layout and programs.
+    Restore i3 workspaces layouts and programs.
+    WORKSPACES are the workspaces to restore.
+    [default: current workspace]
     """
     i3 = i3ipc.Connection()
 
-    if workspace is None:
-        workspace = i3.get_tree().find_focused().workspace().name
+    if not workspaces:
+        if numeric:
+            workspaces = ( str(i3.get_tree().find_focused().workspace().num), )
+        else:
+            workspaces = ( i3.get_tree().find_focused().workspace().name, )
 
     if profile is not None:
         directory = Path(directory) / profile
 
-    if numeric and not workspace.isdigit():
-        util.eprint('Invalid workspace number.')
-        sys.exit(1)
-
-    # Get layout name from file.
-    workspace_layout = layout.read(workspace, directory)
-    if 'name' in workspace_layout:
-        workspace_name = workspace_layout['name']
+    if workspace:
+        for workspace_id in workspaces:
+            if numeric and not workspace_id.isdigit():
+                util.eprint('Invalid workspace number.')
+                sys.exit(1)
+            saved_layout = layout.read(workspace_id, directory)
+            if target != 'layout_only':
+                saved_programs = programs.read(workspace_id, directory)
+            else:
+                saved_programs = None
+            restore_workspace(i3, saved_layout, saved_programs, target)
     else:
-        workspace_name = workspace
-
-    # Switch to the workspace which we are loading.
-    i3.command(f'workspace --no-auto-back-and-forth "{workspace_name}"')
-
-    if target != 'programs_only':
-        # Load workspace layout.
-        layout.restore(workspace_name, workspace_layout)
-
-    if target != 'layout_only':
-        # Restore programs.
-        saved_programs = programs.read(workspace, directory)
-        programs.restore(workspace_name, saved_programs)
+        util.eprint('--workspace must be specified.')
+        sys.exit(1)
 
 
 @main.command('load')
@@ -245,8 +278,8 @@ def list_workspaces(directory, item):
 
 @main.command('rm')
 @click.option('--workspace', '-w',
-              default=None,
-              help='The saved workspace to delete.')
+              is_flag=True,
+              help='The saved workspace to delete.\nThis can either be a name or the number of a workspace.')
 @click.option('--directory', '-d',
               type=click.Path(file_okay=False),
               default=Path('~/.i3/i3-resurrect/').expanduser(),
@@ -259,24 +292,30 @@ def list_workspaces(directory, item):
 @click.option('--programs-only', 'target',
               flag_value='programs_only',
               help='Only delete saved programs.')
-def remove(workspace, directory, profile, target):
+@click.argument('workspaces', nargs=-1)
+def remove(workspace, directory, profile, target, workspaces):
     """
     Remove saved layout or programs.
+    WORKSPACES are the workspaces to remove.
     """
-
     if profile is not None:
         directory = Path(directory) / profile
 
-    if workspace is not None:
-        workspace_id = util.filename_filter(workspace)
-        programs_filename = f'workspace_{workspace_id}_programs.json'
-        layout_filename = f'workspace_{workspace_id}_layout.json'
-    else:
-        util.eprint('--workspace must be specified.')
-        sys.exit(1)
-    programs_file = Path(directory) / programs_filename
-    layout_file = Path(directory) / layout_filename
+    if workspace:
+        for workspace_id in workspaces:
+            workspace_id = util.filename_filter(workspace_id)
+            programs_filename = f'workspace_{workspace_id}_programs.json'
+            layout_filename = f'workspace_{workspace_id}_layout.json'
+            programs_file = Path(directory) / programs_filename
+            layout_file = Path(directory) / layout_filename
 
+        delete(layout_file, programs_file, target)
+    else:
+        util.eprint('--workspace option should be specified.')
+        sys.exit(1)
+
+
+def delete(layout_file, programs_file, target):
     if target != 'programs_only':
         # Delete programs file.
         programs_file.unlink()
