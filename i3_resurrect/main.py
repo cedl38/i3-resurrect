@@ -92,7 +92,7 @@ def save_workspace(workspace, numeric, session, directory, profile, clear, swall
             programs.save(workspace_id, numeric, directory)
 
 
-def restore_workspace(i3, saved_layout, saved_programs, target):
+def restore_workspace(i3, saved_layout, saved_programs, target, clear):
     if saved_layout == None:
         return
 
@@ -111,7 +111,7 @@ def restore_workspace(i3, saved_layout, saved_programs, target):
 
     if target != 'layout_only':
         # Restore programs.
-        programs.restore(workspace_name, saved_programs)
+        programs.restore(workspace_name, saved_programs, clear)
 
 
 @main.command('restore')
@@ -132,6 +132,10 @@ def restore_workspace(i3, saved_layout, saved_programs, target):
 @click.option('--profile', '-p',
               default=None,
               help=('The profile to restore the workspace from.'))
+@click.option('--clear', '-c',
+              is_flag=True,
+              help='Close program that are not part of the workspace layout \
+              before restore it.\n')
 @click.option('--layout-only', 'target',
               flag_value='layout_only',
               help='Only restore layout.')
@@ -139,7 +143,8 @@ def restore_workspace(i3, saved_layout, saved_programs, target):
               flag_value='programs_only',
               help='Only restore running programs.')
 @click.argument('workspaces', nargs=-1)
-def restore_workspaces(workspace, numeric, session, directory, profile, target, workspaces):
+def restore_workspaces(workspace, numeric, session, directory, profile, target,
+        clear, workspaces):
     """
     Restore i3 workspaces layouts and programs.
     WORKSPACES are the workspaces to restore.
@@ -176,7 +181,7 @@ def restore_workspaces(workspace, numeric, session, directory, profile, target, 
                 saved_programs = programs.read(workspace_id, directory)
             else:
                 saved_programs = None
-            restore_workspace(i3, saved_layout, saved_programs, target)
+            restore_workspace(i3, saved_layout, saved_programs, target, clear)
     else:
         util.eprint('Either --workspace or --session should be specified.')
         sys.exit(1)
@@ -197,6 +202,10 @@ def restore_workspaces(workspace, numeric, session, directory, profile, target, 
 @click.option('--profile', '-p',
               default=None,
               help=('The profile to restore the workspace from.'))
+@click.option('--clear', '-c',
+              is_flag=True,
+              help='Close program that are not part of the workspace layout \
+              before loading it.\n')
 @click.option('--layout-only', 'target',
               flag_value='layout_only',
               help='Only restore layout.')
@@ -206,7 +215,7 @@ def restore_workspaces(workspace, numeric, session, directory, profile, target, 
 @click.argument('workspace_layout')
 @click.argument('target_workspace', required=False)
 def load_workspaces(workspace, numeric, directory, profile, target,
-        workspace_layout, target_workspace):
+        workspace_layout, target_workspace, clear):
     """
     Load i3 workspace layout and programs.
     WORKSPACE_LAYOUT is the workspace file to load
@@ -256,7 +265,7 @@ def load_workspaces(workspace, numeric, directory, profile, target,
 
     if target != 'layout_only':
         # Restore programs.
-        programs.restore(target_workspace, saved_programs)
+        programs.restore(target_workspace, saved_programs, clear)
 
 
 @main.command('ls')

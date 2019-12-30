@@ -56,17 +56,24 @@ def read(workspace, directory):
     return programs
 
 
-def restore(workspace_name, saved_programs):
+def restore(workspace_name, saved_programs, clear):
     """
     Restore the running programs from an i3 workspace.
     """
     # Remove already running programs from the list of program to restore.
+    i3 = i3ipc.Connection()
+
     running_programs = get_programs(workspace_name, False)
     for program in running_programs:
         if program in saved_programs:
             saved_programs.remove(program)
+        elif clear:
+            window_class = program['class']
+            # programs that have to be closed
+            # i3.command(f'[workspace="{workspace_name}" class="{window_class}"] kill')
+            i3.command(f'[workspace="{workspace_name}" class="{window_class}"] focus')
+            i3.command(f'kill')
 
-    i3 = i3ipc.Connection()
     for entry in saved_programs:
         cmdline = entry['command']
         working_directory = entry['working_directory']
@@ -87,6 +94,7 @@ def restore(workspace_name, saved_programs):
             command = cmdline
 
         # Execute command via i3 exec.
+        i3.command(f'workspace --no-auto-back-and-forth {workspace_name}')
         i3.command(f'exec "cd \\"{working_directory}\\" && {command}"')
 
 
@@ -129,9 +137,11 @@ def get_programs(workspace, numeric):
 
         terminals = config.get('terminals', [])
 
+        window_class = con['window_properties']['class']
+
         try:
             # Obtain working directory using psutil.
-            if con['window_properties']['class'] in terminals:
+            if window_class in terminals:
                 # If the program is a terminal emulator, get the working
                 # directory from its first subprocess.
                 working_directory = procinfo.children()[0].cwd()
@@ -142,6 +152,7 @@ def get_programs(workspace, numeric):
 
         # Add the command to the list.
         programs.append({
+            'class': window_class,
             'command': command,
             'working_directory': working_directory
         })
