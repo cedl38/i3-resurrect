@@ -37,6 +37,9 @@ def main():
 @click.option('--profile', '-p',
               default=None,
               help=('The profile to save the workspace to.'))
+@click.option('--clear', '-c',
+              is_flag=True,
+              help='Clear previous layout files before saving.\n')
 @click.option('--swallow', '-s',
               default='class,instance',
               help=('The swallow criteria to use.\n'
@@ -49,7 +52,7 @@ def main():
               flag_value='programs_only',
               help='Only save running programs.')
 @click.argument('workspaces', nargs=-1, default=None)
-def save_workspace(workspace, numeric, session, directory, profile, swallow, target, workspaces):
+def save_workspace(workspace, numeric, session, directory, profile, clear, swallow, target, workspaces):
     """
     Save i3 workspaces layouts and running programs to a file.
     WORKSPACES are the workspaces to save.
@@ -68,6 +71,10 @@ def save_workspace(workspace, numeric, session, directory, profile, swallow, tar
 
     if target != 'programs_only':
         swallow_criteria = swallow.split(',')
+
+    if clear and os.path.isdir(directory):
+        # Clear previous layout files before saving in current profile
+        clear_directory(directory, target)
 
     if session:
         workspaces = layout.list(i3, numeric)
