@@ -55,7 +55,8 @@ def main():
 @click.argument('workspaces', nargs=-1, default=None)
 def save_workspace(workspace, numeric, session, directory, profile, clear, swallow, target, workspaces):
     """
-    Save i3 workspaces layouts and running programs to a file.
+    Save i3 workspace(s) layout(s) or whole session and running programs to a file.
+
     WORKSPACES are the workspaces to save.
     [default: current workspace]
     """
@@ -150,7 +151,8 @@ def restore_workspace(i3, saved_layout, saved_programs, target, clear):
 def restore_workspaces(workspace, numeric, session, directory, profile, target,
         clear, focus, workspaces):
     """
-    Restore i3 workspaces layouts and programs.
+    Restore i3 workspace(s) layout(s) or whole session and programs.
+
     WORKSPACES are the workspaces to restore.
     [default: current workspace]
     """
@@ -229,7 +231,8 @@ def load_workspaces(workspace, numeric, directory, profile, target,
         workspace_layout, target_workspace, clear):
     """
     Load i3 workspace layout and programs.
-    WORKSPACE_LAYOUT is the workspace file to load
+
+    WORKSPACE_LAYOUT is the workspace file to load.
     TARGET_WORKSPACE is the target workspace
     """
     i3 = i3ipc.Connection()
@@ -343,7 +346,8 @@ def list_workspaces(directory, item):
 @click.argument('workspaces', nargs=-1)
 def remove(workspace, session, directory, profile, target, workspaces):
     """
-    Remove saved layout or programs.
+    Remove saved worspace(s) layout(s), whole session, or programs.
+
     WORKSPACES are the workspaces to remove.
     """
     if profile is not None:
@@ -396,7 +400,7 @@ def clear_directory(directory, target):
 @click.argument('workspaces', nargs=-1)
 def close(workspace, session, workspaces):
     """
-    Close workspace or whole session.
+    Close workspace(s) or whole session.
     """
     i3 = i3ipc.Connection()
 
